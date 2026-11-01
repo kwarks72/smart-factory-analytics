@@ -1,0 +1,56 @@
+# 명령 한 줄(docker compose up --build)로 아래 4개를 순서대로 켭니다.
+#   db        : PostgreSQL 데이터베이스
+#   init      : 데이터 만들기 + 분석 (끝나면 스스로 종료)
+#   api       : FastAPI 서버      -> http://localhost:8000/docs
+#   dashboard : Streamlit 대시보드 -> http://localhost:8501
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: factory
+      POSTGRES_PASSWORD: factory
+      POSTGRES_DB: factory
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U factory -d factory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  init:
+    build: .
+    command: sh -c "python generate_data.py && python analyze.py"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://factory:factory@db:5432/factory
+    volumes:
+      - ./output:/app/output
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: postgresql+psycopg2://factory:factory@db:5432/factory
+    ports:
+      - "8000:8000"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  dashboard:
+    build: .
+    command: streamlit run dashboard.py --server.port 8501 --server.address 0.0.0.0
+    environment:
+      DATABASE_URL: postgresql+psycopg2://factory:factory@db:5432/factory
+    ports:
+      - "8501:8501"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

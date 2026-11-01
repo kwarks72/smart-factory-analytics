@@ -1,0 +1,8 @@
+pandas
+matplotlib
+sqlalchemy
+psycopg2-binary
+fastapi
+uvicorn
+streamlit>=1.50
+altair
